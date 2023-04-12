@@ -59,15 +59,15 @@ pub struct RuleType(ValidatorRule, ValidatorErrorType);
 #[derive(Debug)]
 pub struct ValidationResult(bool, HashMap<String, Vec<String>>);
 
-pub struct Validator<'a, T: Serialize> {
+pub struct FreeVal<'a, T: Serialize> {
     pub data: &'a T,
     pub declarations: Vec<RuleDeclaration>,
     
 }
 
-impl<'a, T: Serialize> Validator<'a, T> {
-    pub fn new(data: &'a T, declarations: Vec<RuleDeclaration>) -> Validator<'a, T> {
-        Validator { data, declarations }
+impl<'a, T: Serialize> FreeVal<'a, T> {
+    pub fn new(data: &'a T, declarations: Vec<RuleDeclaration>) -> FreeVal<'a, T> {
+        FreeVal { data, declarations }
     }
 
     pub fn validate(&self) -> ValidationResult {
@@ -177,7 +177,7 @@ mod tests {
         let email_rule = RuleDeclaration::new("email", ValidatorRule::Email, None);
 
         // create your validator with declarations
-        let val = Validator::new(
+        let val = FreeVal::new(
             &demo,
             vec![name_rule, age_rule, bio_rule, allow_rule, pass_rule, email_rule],
         );
