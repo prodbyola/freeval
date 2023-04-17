@@ -1,11 +1,15 @@
+use std::fmt::{Display, Debug};
+
 use regex::Regex;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
+pub mod macros;
+
 pub enum LengthType {
     Exact,
     Max,
-    Min
+    Min,
 }
 
 pub struct InnerValidationResult(pub bool, pub String);
@@ -20,52 +24,86 @@ impl LengthType {
     }
 }
 
+pub enum RangeType {
+    Size,
+    Length,
+}
+
+impl RangeType {
+    pub fn to_string(&self) -> &str {
+        match self {
+            RangeType::Size => "size",
+            RangeType::Length => "length",
+        }
+    }
+}
+
 /// checks the type of length to be validated
-fn check_len(rule: &usize, vlen: &usize, check_type: LengthType) -> bool {
+fn check_len<T: PartialEq + PartialOrd>(rule: &T, vlen: &T, length_type: LengthType) -> bool {
     let mut cond = vlen == rule;
 
-    match check_type {
+    match length_type {
         LengthType::Max => cond = vlen >= rule,
         LengthType::Min => cond = vlen <= rule,
-        _ => {},
+        _ => {}
     }
 
-    return cond
+    return cond;
 }
 
 /// deserializes a value
 fn extract_value<T: DeserializeOwned + 'static>(value: Value) -> T {
-    let d:T = serde_json::from_value(value).expect("failed to extract result");
+    let d: T = serde_json::from_value(value).expect("failed to extract result");
     d
 }
 
 /// Validates length of strings or any type has ```len``` method. This is most suitable for strings at the moment.
-pub fn length(field: &str, rule: &usize, value: Value, check_type: LengthType) -> InnerValidationResult {
-    let err = format!("'{}' field must be {} {} characters.", field, check_type.to_string(), &rule);
+pub fn length(
+    field: &str,
+    rule: &usize,
+    value: Value,
+    length_type: LengthType,
+) -> InnerValidationResult {
+    let err = format!(
+        "'{}' field must be {} {} characters.",
+        field,
+        length_type.to_string(),
+        &rule
+    );
 
     if value.is_null() {
-        return InnerValidationResult(false, err)
+        return InnerValidationResult(false, err);
     }
 
     let v: String = extract_value(value);
 
     let vlen = &v.len(); // length of value
-    let cond = check_len(rule, vlen, check_type);
+    let cond = check_len(rule, vlen, length_type);
 
     InnerValidationResult(cond, err)
 }
 
 /// Validates size of an integer
-pub fn size(field: &str, rule: &usize, value: Value, check_type: LengthType) -> InnerValidationResult {
-    let err = format!("'{}' field must be {} {}.", field, check_type.to_string(), &rule);
+pub fn size(
+    field: &str,
+    rule: &isize,
+    value: Value,
+    length_type: LengthType,
+) -> InnerValidationResult {
+    let err = format!(
+        "'{}' field must be {} {}.",
+        field,
+        length_type.to_string(),
+        &rule
+    );
     if value.is_null() {
-        return InnerValidationResult(false, err)
+        return InnerValidationResult(false, err);
     }
 
-    let v: usize = extract_value(value);
-    
+    let v: isize = extract_value(value);
+
     let vlen = &v; // length of value
-    let cond = check_len(rule, vlen, check_type);
+    let cond = check_len(rule, vlen, length_type);
 
     InnerValidationResult(cond, err)
 }
@@ -87,11 +125,11 @@ pub fn check_bool(field: &str, value: Value) -> InnerValidationResult {
 pub fn password(field: &str, value: Value, len: usize) -> InnerValidationResult {
     let err = format!("'{}' field must contain at least one uppercase letter, one lowercase letter, one digit and one special character and must be at least {} chars long.", field, &len);
     if value.is_null() {
-        return InnerValidationResult(false, err)
+        return InnerValidationResult(false, err);
     }
-    
+
     let v: String = extract_value(value);
-    
+
     let mut has_whitespace = false;
     let mut has_upper = false;
     let mut has_lower = false;
@@ -106,7 +144,12 @@ pub fn password(field: &str, value: Value, len: usize) -> InnerValidationResult 
         has_special_char |= !c.is_ascii_alphanumeric()
     }
 
-    let cond = !has_whitespace && has_upper && has_lower && has_digit && has_special_char && v.len() >= len;
+    let cond = !has_whitespace
+        && has_upper
+        && has_lower
+        && has_digit
+        && has_special_char
+        && v.len() >= len;
     InnerValidationResult(cond, err)
 }
 
@@ -114,7 +157,7 @@ pub fn password(field: &str, value: Value, len: usize) -> InnerValidationResult 
 pub fn email(field: &str, value: Value) -> InnerValidationResult {
     let err = format!("'{}' field must be a valid email address", field);
     if value.is_null() {
-        return InnerValidationResult(false, err)
+        return InnerValidationResult(false, err);
     }
 
     let v: String = extract_value(value);
@@ -122,19 +165,67 @@ pub fn email(field: &str, value: Value) -> InnerValidationResult {
     InnerValidationResult(re.is_match(&v), err)
 }
 
+/// Validates whether the ```length``` of a ```string``` or the ```size``` of an ```int``` is within a specified range of ```min``` and ```max```.
+pub fn range<T>(
+    field: &str,
+    value: Value,
+    min: &T,
+    max: &T,
+    range_type: RangeType,
+) -> InnerValidationResult
+where
+    T: DeserializeOwned + PartialOrd + Display + 'static + TryFrom<usize>,
+    <T as TryFrom<usize>>::Error: Debug,
+{
+    let err = format!(
+        "{}'s {} must be between {} and {}.",
+        field,
+        range_type.to_string(),
+        min,
+        max
+    );
+
+    if value.is_null() {
+        return InnerValidationResult(false, err);
+    }
+
+    let len: T;
+
+    match range_type {
+        RangeType::Length => {
+            let val: String = extract_value(value);
+            let nv = T::try_from(val.len()).unwrap();
+            len = nv;
+        }
+        RangeType::Size => len = extract_value(value),
+    }
+
+    let cond = &len > min && &len < max;
+    InnerValidationResult(cond, err)
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
-    fn test_length(){
+    fn test_length() {
         use super::*;
 
         let rule = 32;
-        let InnerValidationResult(len_status, _) = length("name", &rule, Value::from("Olamide"), LengthType::Min); // length
-        let InnerValidationResult(size_status, _) = size("age", &rule, Value::from(44), LengthType::Min); // size
+        let irule = -32;
+        let InnerValidationResult(len_status, _) =
+            length("name", &rule, Value::from("Olamide"), LengthType::Min); // length
+        let InnerValidationResult(size_status, _) =
+            size("age", &irule, Value::from(44), LengthType::Min); // size
         let InnerValidationResult(req_status, _) = required("valid", Value::from(Some("yes"))); // required
         let InnerValidationResult(bool_status, _) = check_bool("allow", Value::from(false)); // boolean
-        let InnerValidationResult(pass_status, _) = password("password", Value::from("MyUniquPas@007"), 8); // password
+        let InnerValidationResult(pass_status, _) =
+            password("password", Value::from("MyUniquPas@007"), 8); // password
         let InnerValidationResult(email_status, _) = email("email", Value::from("MyUniquPas@007")); // email
+
+        // range
+        let (min, max) = (8,16);
+        let InnerValidationResult(rlen_status, _) = range::<i32>("rlen", Value::from("TheRandomString"), &min, &max, RangeType::Length);
+        let InnerValidationResult(slen_status, _) = range("slen", Value::from(6), &min, &max, RangeType::Size);
 
         assert_eq!(len_status, true);
         assert_eq!(size_status, false);
@@ -142,5 +233,7 @@ mod tests {
         assert_eq!(bool_status, false);
         assert_eq!(pass_status, true);
         assert_eq!(email_status, false);
+        assert_eq!(rlen_status, true);
+        assert_eq!(slen_status, false);
     }
 }

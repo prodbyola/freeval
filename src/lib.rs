@@ -1,4 +1,4 @@
-use std::{collections::HashMap};
+use std::collections::HashMap;
 use serde::Serialize;
 
 mod validators;
@@ -7,17 +7,32 @@ use validators::*;
 
 type ValidatorErrorType = Option<String>;
 
+/// Validation rules used by ```FreeVal``` to validate your input struct.  
 pub enum ValidatorRule {
+    /// validates length of string
     Length(usize),
+    /// validates maximum length of string
     MaxLength(usize),
+    /// validates minimum length of string
     MinLength(usize),
-    Size(usize),
-    MaxSize(usize),
-    MinSize(usize),
+    /// validates size of number
+    Size(isize),
+    /// validates maximum size of number
+    MaxSize(isize),
+    /// validates minimum size of number 
+    MinSize(isize),
+    /// validates boolean value
     Bool,
+    /// validates password with minimum length
     Password(usize),
+    /// validates value is not null
     Required,
-    Email
+    /// validates email address
+    Email,
+    /// validates range of string length
+    LengthRange((isize, isize)),
+    /// validates range of int size
+    SizeRange((isize, isize)),
 }
 
 // field and rules to apply
@@ -84,18 +99,21 @@ impl<'a, T: Serialize> FreeVal<'a, T> {
     
                             let rule = &rule_type.0;
                             let error = &rule_type.1;
+                            let val = value.clone();
                             
                             match rule {
-                                ValidatorRule::Length(rule) => _inner_result = length(key, &rule, value.clone(), LengthType::Exact),
-                                ValidatorRule::MaxLength(rule) => _inner_result = length(key, &rule, value.clone(), LengthType::Max),
-                                ValidatorRule::MinLength(rule) => _inner_result = length(key, &rule, value.clone(), LengthType::Min),
-                                ValidatorRule::Size(rule) => _inner_result = size(key, &rule, value.clone(), LengthType::Exact),
-                                ValidatorRule::MaxSize(rule) => _inner_result = size(key, &rule, value.clone(), LengthType::Max),
-                                ValidatorRule::MinSize(rule) => _inner_result = size(key, &rule, value.clone(), LengthType::Min),
-                                ValidatorRule::Bool => _inner_result = check_bool(key, value.clone()),
-                                ValidatorRule::Password(min_len) => _inner_result = password(key, value.clone(), *min_len),
-                                ValidatorRule::Required => _inner_result = required(key, value.clone()),
-                                ValidatorRule::Email => _inner_result = email(key, value.clone())
+                                ValidatorRule::Length(rule) => _inner_result = length(key, &rule, val, LengthType::Exact),
+                                ValidatorRule::MaxLength(rule) => _inner_result = length(key, &rule, val, LengthType::Max),
+                                ValidatorRule::MinLength(rule) => _inner_result = length(key, &rule, val, LengthType::Min),
+                                ValidatorRule::Size(rule) => _inner_result = size(key, &rule, val, LengthType::Exact),
+                                ValidatorRule::MaxSize(rule) => _inner_result = size(key, &rule, val, LengthType::Max),
+                                ValidatorRule::MinSize(rule) => _inner_result = size(key, &rule, val, LengthType::Min),
+                                ValidatorRule::Bool => _inner_result = check_bool(key, val),
+                                ValidatorRule::Password(min_len) => _inner_result = password(key, val, *min_len),
+                                ValidatorRule::Required => _inner_result = required(key, val),
+                                ValidatorRule::Email => _inner_result = email(key, val),
+                                ValidatorRule::LengthRange((min,max)) => _inner_result = range(key, val, min, max, RangeType::Length),
+                                ValidatorRule::SizeRange((min, max)) => _inner_result = range(key, val, min, max, RangeType::Size),
                             }
     
                             let InnerValidationResult(status, default_err) = _inner_result;
