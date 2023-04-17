@@ -184,20 +184,20 @@ mod tests {
         };
 
         // declare validation rules for any field you wish to validate
-        let name_rule = RuleDeclaration::new("name", ValidatorRule::Length(12), None);
-        let age_rule = RuleDeclaration::new("age", ValidatorRule::Size(18), None);
+        let name_rule = declare_rule!("name", ValidatorRule::Length(12));
+        let age_rule = declare_rule!("age", ValidatorRule::Size(18), "You're under-aged!");
 
-        let mut bio_rule = RuleDeclaration::new("bio", ValidatorRule::Required, None);
-        bio_rule.insert(ValidatorRule::MinLength(12), Some("Bio is too short!")); // We can add more validation rules to a single field
+        let mut bio_rule = declare_rule!("bio", ValidatorRule::Required);
+        insert_rule!(bio_rule, ValidatorRule::MinLength(12), "Bio is too short!"); // We can add more validation rules to a single field
 
-        let allow_rule = RuleDeclaration::new("allow", ValidatorRule::Bool, None);
-        let pass_rule = RuleDeclaration::new("password", ValidatorRule::Password(8), Some("Password is incorrect"));
-        let email_rule = RuleDeclaration::new("email", ValidatorRule::Email, None);
+        let allow_rule = declare_rule!("allow", ValidatorRule::Bool);
+        let pass_rule = declare_rule!("password", ValidatorRule::Password(8), "Password is incorrect");
+        let email_rule = declare_rule!("email", ValidatorRule::Email);
 
         // create your validator with declarations
-        let val = FreeVal::new(
+        let val = freeval!(
             &demo,
-            vec![name_rule, age_rule, bio_rule, allow_rule, pass_rule, email_rule],
+            vec![name_rule, age_rule, bio_rule, allow_rule, pass_rule, email_rule]
         );
 
         let ValidationResult(status, _) = val.validate();

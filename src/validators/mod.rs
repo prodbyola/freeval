@@ -210,12 +210,12 @@ mod tests {
     fn test_length() {
         use super::*;
 
-        let rule = 32;
-        let irule = -32;
+        let len_rule = 32;
+        let size_rule = -32;
         let InnerValidationResult(len_status, _) =
-            length("name", &rule, Value::from("Olamide"), LengthType::Min); // length
+            length("name", &len_rule, Value::from("Olamide"), LengthType::Min); // length
         let InnerValidationResult(size_status, _) =
-            size("age", &irule, Value::from(44), LengthType::Min); // size
+            size("age", &size_rule, Value::from(44), LengthType::Min); // size
         let InnerValidationResult(req_status, _) = required("valid", Value::from(Some("yes"))); // required
         let InnerValidationResult(bool_status, _) = check_bool("allow", Value::from(false)); // boolean
         let InnerValidationResult(pass_status, _) =
