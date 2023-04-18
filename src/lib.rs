@@ -33,6 +33,8 @@ pub enum ValidatorRule {
     LengthRange((isize, isize)),
     /// validates range of int size
     SizeRange((isize, isize)),
+    /// validates that string value contains another string
+    Contains(&'static str)
 }
 
 // field and rules to apply
@@ -71,13 +73,11 @@ impl RuleDeclaration {
 // rule and error to be associated
 pub struct RuleType(ValidatorRule, ValidatorErrorType);
 
-#[derive(Debug)]
-pub struct ValidationResult(bool, HashMap<String, Vec<String>>);
+pub type ValidationErrors = HashMap<String, Vec<String>>;
 
 pub struct FreeVal<'a, T: Serialize> {
     pub data: &'a T,
     pub declarations: Vec<RuleDeclaration>,
-    
 }
 
 impl<'a, T: Serialize> FreeVal<'a, T> {
@@ -85,8 +85,8 @@ impl<'a, T: Serialize> FreeVal<'a, T> {
         FreeVal { data, declarations }
     }
 
-    pub fn validate(&self) -> ValidationResult {
-        let mut result = ValidationResult(true, HashMap::new());
+    pub fn validate(&self) -> Result<(), ValidationErrors> {
+        let mut result_errs = HashMap::new();
 
         if let Ok(serde_json::Value::Object(map)) = serde_json::to_value(self.data) {
             // iterate of keys/values of validator data...
@@ -94,6 +94,7 @@ impl<'a, T: Serialize> FreeVal<'a, T> {
                 // ...then iterate over rule declarations to get field's rules
                 for decl in &self.declarations {
                     if &decl.field == key {
+                        // ...then iterate over each rule to validate
                         for rule_type in &decl.rules {
                             let mut _inner_result = InnerValidationResult(false, String::new());
     
@@ -114,21 +115,20 @@ impl<'a, T: Serialize> FreeVal<'a, T> {
                                 ValidatorRule::Email => _inner_result = email(key, val),
                                 ValidatorRule::LengthRange((min,max)) => _inner_result = range(key, val, min, max, RangeType::Length),
                                 ValidatorRule::SizeRange((min, max)) => _inner_result = range(key, val, min, max, RangeType::Size),
+                                ValidatorRule::Contains(rule) => _inner_result = contains(key, *rule, val)
                             }
     
                             let InnerValidationResult(status, default_err) = _inner_result;
                             if !status {
                                 // Initialize field errors if it does not exist.
-                                if let None = result.1.get(key) {
-                                    result.1.insert(key.to_string(), Vec::new());
+                                if let None = result_errs.get(key) {
+                                    result_errs.insert(key.to_string(), Vec::new());
                                 }
     
-                                if let Some(error_list) = result.1.get(key) {
+                                if let Some(error_list) = result_errs.get(key) {
                                     let errors = self.add_error(error, default_err, error_list);
-                                    result.1.insert(key.to_string(), errors);
+                                    result_errs.insert(key.to_string(), errors);
                                 }
-                                
-                                result.0 = status;
                             }
                 
                         }
@@ -138,9 +138,18 @@ impl<'a, T: Serialize> FreeVal<'a, T> {
             }
         }
 
-        return result;
+        if !result_errs.is_empty() {
+            return Err(result_errs);
+        }
+
+        Ok(())
     }
 
+    /// adds an error to ```error_list```.
+    /// 
+    /// Checks if there's a user ```defined_err``` and if there's none, adds the ```default_err```.
+    /// 
+    /// Returns the new ```error_list```. 
     fn add_error(&self, defined_err: &ValidatorErrorType, default_err: String, error_list: &Vec<String>) -> Vec<String> {
         let mut error = default_err;
 
@@ -200,9 +209,11 @@ mod tests {
             vec![name_rule, age_rule, bio_rule, allow_rule, pass_rule, email_rule]
         );
 
-        let ValidationResult(status, _) = val.validate();
-        // println!("errors: {:?}", errors);
+        let result = val.validate();
+        if let Err(e) = &result {
+            println!("errors {:?}", e);
+        }
         
-        assert_eq!(status, false)
+        assert!(result.is_err())
     }
 }

@@ -165,7 +165,8 @@ pub fn email(field: &str, value: Value) -> InnerValidationResult {
     InnerValidationResult(re.is_match(&v), err)
 }
 
-/// Validates whether the ```length``` of a ```string``` or the ```size``` of an ```int``` is within a specified range of ```min``` and ```max```.
+/// Validates whether the ```length``` of a ```string``` or the ```size``` of an ```int``` is within a specified 
+/// range of ```min``` and ```max```.
 pub fn range<T>(
     field: &str,
     value: Value,
@@ -204,6 +205,19 @@ where
     InnerValidationResult(cond, err)
 }
 
+pub fn contains(field: &str, rule: &str, value: Value) -> InnerValidationResult {
+    let err = format!("'{}' field must contain  '{}'. Please check again.", field, rule);
+    if value.is_null() {
+        return InnerValidationResult(false, err);
+    }
+
+    let v: String = extract_value(value);
+
+    let cond = v.contains(rule);
+
+    InnerValidationResult(cond, err)
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -224,8 +238,10 @@ mod tests {
 
         // range
         let (min, max) = (8,16);
-        let InnerValidationResult(rlen_status, _) = range::<i32>("rlen", Value::from("TheRandomString"), &min, &max, RangeType::Length);
-        let InnerValidationResult(slen_status, _) = range("slen", Value::from(6), &min, &max, RangeType::Size);
+        let InnerValidationResult(rlen_status, _) = range::<i32>("rlen", Value::from("TheRandomString"), &min, &max, RangeType::Length); // length
+        let InnerValidationResult(slen_status, _) = range("slen", Value::from(6), &min, &max, RangeType::Size); // size
+
+        let InnerValidationResult(cont_status, _) = contains("contains_field", "nothere", Value::from("I love rust")); // contains
 
         assert_eq!(len_status, true);
         assert_eq!(size_status, false);
@@ -235,5 +251,6 @@ mod tests {
         assert_eq!(email_status, false);
         assert_eq!(rlen_status, true);
         assert_eq!(slen_status, false);
+        assert_eq!(cont_status, false);
     }
 }
