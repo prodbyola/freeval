@@ -3,9 +3,6 @@ use std::fmt::{Display, Debug};
 use regex::Regex;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
-
-pub mod macros;
-
 pub enum LengthType {
     Exact,
     Max,
@@ -40,12 +37,12 @@ impl RangeType {
 
 /// checks the type of length to be validated
 fn check_len<T: PartialEq + PartialOrd>(rule: &T, vlen: &T, length_type: LengthType) -> bool {
-    let mut cond = vlen == rule;
+    let cond;
 
     match length_type {
-        LengthType::Max => cond = vlen >= rule,
-        LengthType::Min => cond = vlen <= rule,
-        _ => {}
+        LengthType::Max => cond = rule >= vlen,
+        LengthType::Min => cond = rule <= vlen,
+        LengthType::Exact => cond = rule == vlen
     }
 
     return cond;
@@ -224,12 +221,12 @@ mod tests {
     fn test_length() {
         use super::*;
 
-        let len_rule = 32;
+        let len_rule = 7;
         let size_rule = -32;
         let InnerValidationResult(len_status, _) =
             length("name", &len_rule, Value::from("Olamide"), LengthType::Min); // length
         let InnerValidationResult(size_status, _) =
-            size("age", &size_rule, Value::from(44), LengthType::Min); // size
+            size("age", &size_rule, Value::from(44), LengthType::Max); // size
         let InnerValidationResult(req_status, _) = required("valid", Value::from(Some("yes"))); // required
         let InnerValidationResult(bool_status, _) = check_bool("allow", Value::from(false)); // boolean
         let InnerValidationResult(pass_status, _) =

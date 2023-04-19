@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use serde::Serialize;
 
 mod validators;
+pub mod macros;
 
 use validators::*;
 
@@ -175,6 +176,13 @@ struct DemoStruct {
     email: &'static str,
 }
 
+#[derive(serde::Serialize)]
+struct RequestData{
+    username: &'static str,
+    password: &'static str
+} 
+
+
 #[cfg(test)]
 mod tests {
 
@@ -210,10 +218,38 @@ mod tests {
         );
 
         let result = val.validate();
-        if let Err(e) = &result {
-            println!("errors {:?}", e);
-        }
+        // if let Err(e) = &result {
+        //     println!("errors {:?}", e);
+        // }
         
         assert!(result.is_err())
+    }
+
+    #[test]
+    fn demo_test() {
+        use super::*;
+
+        let data = RequestData {
+            username: "Olamide",
+            password: "myWeakPass"
+        };
+    
+        // first, declare validation rules for each field you wish to validate with (optional) error message...
+        let mut username_rule = declare_rule!("username", ValidatorRule::LengthRange((8, 12)), "username length is too short! Must be between 8 and 12");
+        insert_rule!(username_rule, ValidatorRule::Required); // you can insert more rules for a single field
+    
+        let pass_rule = declare_rule!("password", ValidatorRule::Password(8), "Password unacceptable!"); // another rule for the "password" field.
+    
+        //...then create your validator with declared rules
+        let validator = freeval!(&data, vec![username_rule, pass_rule]);
+        //... and validate 
+        let vr = validator.validate();
+    
+        if let Err(err) = &vr {
+            // err is an HashMap of each field and their validation errors(if any).
+            println!("validation errors: {:?}", err);
+        }
+
+        assert!(vr.is_err());
     }
 }
